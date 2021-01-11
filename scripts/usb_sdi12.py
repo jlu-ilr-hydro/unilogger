@@ -39,13 +39,26 @@ async def scanbus(port):
     else:
         out = sys.stdout
     print('Create bus')
-    bus = sdi12.Bus(port)
+    bus = sdi12.SDI12Bus(port)
     bus.debug = True
     print('SDI12 bus open on', port)
-    bus.sensors = await bus.scanbus('012')
+    bus.sensors = await bus.scanbus('0123')
 
     bus.to_stream(out)
 
+
+def change_address(port, newaddress):
+    """
+    Changes the current address of a single
+    :param port:
+    :param newaddress:
+    :return:
+
+    ?! -> a  # current address
+    aAn! -> n  # new current address
+    aI! -> info
+    """
+    ...
 
 async def readbus(busfile):
 
@@ -58,11 +71,14 @@ async def readbus(busfile):
 
 if __name__ == '__main__':
     if len(sys.argv) < 2 or sys.argv[1].startswith('h'):
-        print('Usage: test/usb_sdi12.py [csr] [port] [busfile]')
+        print('Usage: test/usb_sdi12.py [csra] [port] [busfile]')
         print('   c: opens a SDI12 console on port [port]')
         print('   s: Scans the bus at port [port] and writes a new busfile [busfile]')
         print('        eg. test/usb_sdi12.py s /dev/ttyUSB4 preferences/sdi12.bus.yaml')
         print('   r: Reads actual data using the busfile, eg. test/usb_sdi12.py r preferences/sdi12.bus.yaml')
+        print('   a: Changes the logger address')
+        print('      usb_sdi12.py a [port] [new address]')
+        print('      usb_sdi12.py a COM5 2')
     elif sys.argv[1] == 'c':
         console(sys.argv[2])
     elif sys.argv[1] == 's':

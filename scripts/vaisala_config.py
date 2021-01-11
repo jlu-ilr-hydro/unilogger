@@ -1,8 +1,9 @@
 #! /usr/bin/env python3
 import sys
 import serial
-from trailer import address
-def setting(port,time):
+
+
+def setting(port, time):
     """
     Updates the interval (I) and averaging time (A) of the sensors
     """
