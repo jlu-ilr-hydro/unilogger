@@ -40,14 +40,14 @@ if __name__ == '__main__':
     bus = Bus.from_file(sys.argv[1])
     csv = Csv(sys.argv[2], 'a')
     try:
-        end = datetime.strptime(sys.argv[3], '%Y%m%d-%H%M')
+        start_date = datetime.strptime(sys.argv[3], '%Y%m%d-%H%M')
     except ValueError:
         print('Wrong date format: {} does not match yyyymmdd-hhmm. 20160901-1340 would work')
         exit()
     else:
         for sensor in bus.sensors:
             print('Read sensor:', sensor)
-            res = await_coro(bus.readsensor(sensor, fromdate=end, slots=100000))
+            res = await_coro(bus.readsensor(sensor, fromdate=start_date, slots=100000))
             print('...got {} values'.format(len(res)))
             csv(res)
     csv.close()

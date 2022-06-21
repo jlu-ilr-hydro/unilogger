@@ -1,10 +1,8 @@
 #!/usr/bin/python3
+import datetime
 import sys
 sys.path.append('.')
 
-import os
-import asyncio
-import yaml
 from unilogger.bus import addupi
 
 def finddevice(tag):
@@ -15,89 +13,83 @@ def finddevice(tag):
     """
     return tag.has_attr('class') and tag['class'] == 'DEVICE'
 
-async def listdevices(bus):
+
+async def listdevices(bus: addupi.Bus):
     """
     Lists all devices on the bus
     """
     print('Get Devices')
-    soup, url = await bus.read(function='getconfig')
-    devices = soup.find_all(finddevice)
-    print('Found ', len(devices), ' devices')
-    for dev in devices:
-        print('    id={id} name={name}'.format(**dev.attrs))
+    async with bus:
+        soup, url = await bus.read(function='getconfig')
+        devices = soup.find_all(finddevice)
+        print('Found ', len(devices), ' devices')
+        for dev in devices:
+            print('    id={id} name={name}'.format(**dev.attrs))
+        return [dev.attrs['id'] for dev in devices]
 
 
-async def test(listdev=False, *sensor_ids):
+async def make_config(bus: addupi.Bus, *node_ids):
     """
-    Tests, if sensors communicate
-    :param listdev:
-    :param sensor_ids:
+    Creates configurations for device nodes (eg. RTUs)
+    :param bus: the bus to configure
+    :param node_ids: ID's of the device nodes
     :return:
     """
-    try:
-        #url = 'http://demo.adcon.at:8080/addUPI'
-        url = 'http://10.42.0.100/addUPI'
-        print('Create bus on ', url)
-        bus = addupi.Bus(url, 'root', 'adcon')
-        print('Login')
-        session = await bus.login(10)
-        print('Got session-id:', session)
-    except addupi.AddUPIError as e:
-        print(e)
-        return
-    try:
-        if listdev:
-            await listdevices(bus)
-        if sensor_ids:
-            print('Create sensors')
-            for sid in sensor_ids:
-                sensor = await bus.configsensor(sid)
-                print('New sensor', sensor)
-                print('Read sensor')
-                data = await bus.readsensor(sensor)
-                print('Data from ', sensor)
-                for v in data:
-                    print(v)
-                    
-            yaml.dump(bus.__asdict__(), sys.stdout, default_flow_style=False)
-
-    finally:
-        print('Logout')
-        await bus.logout()
-        print('Session-id:', bus.session)
+    async with bus:
+        for sid in node_ids:
+            s = await bus.configsensor(sid)
+            print(sid, s, len(s.valuefactories), 'values')
 
 
-async def readfromsavedbus(fn='preferences/addupi-2017-03.bus.yaml'):
-    busdict = yaml.load(open(fn))
-    bus = addupi.Bus(**busdict)
+async def print_actualdata(bus: addupi.Bus):
     print(bus)
     print('=' * 50, '\n')
 
-    await bus.login()
-    try:
+    async with bus:
         for sensor in bus.sensors:
             data = await bus.readsensor(sensor)
             print('Data from ', sensor)
             print('-' * 50)
             for v in data:
                 print('   ', v)
-    finally:
-        await bus.logout()
 
+
+async def get_data(bus, fromdate):
+    async with bus:
+        return [await bus.readsensor(sensor, fromdate) for sensor in bus.sensors]
+
+
+def make_bus(url, user, password, *node_ids):
+    """
+    Creates an addUPI bus for a  given URL and credentials
+    :param url: URL of the A850 ADCON base station
+    :param user: Username (normally 'root')
+    :param password: Password
+    :param sensor_ids: ID's of the device nodes to include (eg. RTUs)
+    :return: the populated bus
+    """
+    bus: addupi.Bus = open_bus(url, user=user, password=password, module='unilogger.bus.addupi')
+    await_coro(make_config(bus, *node_ids))
+    bus.sensors.sort(key=lambda x: x.id)
+    for s in bus.sensors:
+        s.valuefactories.sort(key=lambda x: x.id)
+    print(len(bus.sensors), 'sensors')
+
+    for s in bus.sensors:
+        print(s, len(s.valuefactories), 'values')
+    return bus
+
+
+def load_bus(fn):
+    return open_bus(fn)
 
 
 if __name__ == '__main__':
-    loop = asyncio.get_event_loop()
-    if len(sys.argv)==1:
-        print('Usage:\ntest/addupi.py [ls] [id1,id2,id3...]')
-        exit()
-    #loop.set_debug(1)
-    if os.path.exists(sys.argv[1]):
-        loop.run_until_complete(readfromsavedbus(sys.argv[1]))
-    else:
-        listdev = 'ls' in sys.argv
-        if listdev:
-            sys.argv.remove('ls')
-        sensor_ids = [int(s) for s in sys.argv[1:]]
-        loop.run_until_complete(test(listdev, *sensor_ids))
-    print('\nexit')
+    from unilogger import await_coro
+    from unilogger.bus import open_bus
+
+    bus = make_bus()
+    bus.to_stream(sys.stdout)
+    await_coro(print_actualdata(bus))
+
+

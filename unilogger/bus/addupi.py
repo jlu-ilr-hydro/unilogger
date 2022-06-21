@@ -1,6 +1,8 @@
 """
 
 """
+import typing
+
 import aiohttp
 import datetime
 from bs4 import BeautifulSoup
@@ -109,7 +111,7 @@ class Bus(base.Bus):
         """
         if self.session and 'session-id' not in params:
             params['session-id'] = self.session
-        with aiohttp.ClientSession() as session:
+        async with aiohttp.ClientSession() as session:
             # GET response to function
             async with session.get(self.url, params=params) as r:
                 # check response
@@ -122,9 +124,9 @@ class Bus(base.Bus):
                 # parse text
                 try:
                     soup = BeautifulSoup(text, 'xml')
-                except Exception:
+                except Exception as e:
                     raise AddUPIError('AddUPI connection failed, could not parse response from {}\nResponse:\n{}'
-                                      .format(r.url, text))
+                                      .format(r.url, text)) from e
                 # check for response
                 if not soup.response:
                     raise AddUPIError('AddUPI connection failed, no response tag from {}, got instead:\n{}'
@@ -167,75 +169,64 @@ class Bus(base.Bus):
         :return: The configured sensor
         """
         if not self.session:
-            await self.login()
-            logout = True
-        else:
-            logout = False
-        try:
-            soup, url = await self.read(function='getconfig', id=sensorid, depth=1)
-            sensor = soup.response.node
-            if not sensor or sensor['id'] != str(sensorid):
-                raise AddUPIError('AddUPI asked for sensor #{id} with {url} but got:\n{text}'
-                                  .format(id=sensorid, url=url, text=soup.prettify()))
-            if sensor['class'] != 'DEVICE':
-                raise AddUPIError('{} has not the class DEVICE'.format(sensor))
+            raise AddUPIError('addupi.Bus.configsensor: No log in session available')
+        soup, url = await self.read(function='getconfig', id=sensorid, depth=1)
+        sensor = soup.response.node
+        if not sensor or sensor['id'] != str(sensorid):
+            raise AddUPIError('AddUPI asked for sensor #{id} with {url} but got:\n{text}'
+                              .format(id=sensorid, url=url, text=soup.prettify()))
+        if sensor['class'] != 'DEVICE':
+            raise AddUPIError('{} has not the class DEVICE'.format(sensor))
 
-            asensor = Sensor(sensorid, sensor['name'])
-            for n in sensor.nodes.find_all('node'):
-                if n['class'] == 'TAG':
-                    asensor.valuefactories.append(base.ValueFactory(**n.attrs))
-            self.sensors.append(asensor)
-            return asensor
+        asensor = Sensor(sensorid, sensor['name'])
+        for n in sensor.nodes.find_all('node'):
+            if n['class'] == 'TAG':
+                asensor.valuefactories.append(base.ValueFactory(**n.attrs))
+        self.sensors.append(asensor)
+        return asensor
 
-        finally:
-            if logout:
-                self.logout()
 
-    async def read_all(self):
+    async def read_all(self) -> typing.List[base.Value]:
+        if not self.session:
+            raise AddUPIError('addupi.Bus.read_all: No log in session available')
         values = []
         for sensor in self.sensors:
             s_values = await self.readsensor(sensor)
             values.extend(s_values)
         return values
 
-    async def readsensor(self, sensor: Sensor, fromdate=None, slots=None):
+    async def readsensor(self, sensor: Sensor, fromdate=None, slots=None) -> typing.List[base.Value]:
         """
         Reads a sensor
         :param sensor: AddUPISensor to read
         :return: list of values (Value)
         """
         if not self.session:
-            await self.login()
-            logout = True
-        else:
-            logout = False
-        try:
-            params = {'function': 'getdata',
-                      'id': sensor.id}
-            if fromdate:
-                params['date'] = fromdate.strftime('%Y%m%dT%H:%M:%S')
-                params['slots'] = slots or 1000
+            raise AddUPIError('addupi.Bus.read_all: No log in session available')
 
-            soup, url = await self.read(**params)
-            # Check returned node_id
-            nodes = soup.response.find_all('node')
-            # Make an empty value list
-            values = []
-            # Make a dict to relate id's with valuefactory numbers
-            vfdict = dict((vf.id, i) for i, vf in enumerate(sensor.valuefactories))
-            for node in nodes:
-                # Get first value with absolute date
-                t = datetime.datetime.strptime(node.v['t'], '%Y%m%dT%H:%M:%S')
-                for v_elem in node.find_all('v'):
-                    v = float(v_elem.string)
-                    # Check for relative time
-                    if v_elem['t'].startswith('+'):
-                        t += datetime.timedelta(seconds=int(v_elem['t']))
-                    if node['id'] in vfdict:
-                        i = vfdict[node['id']]
-                        values.append(sensor.valuefactories[i](v, t))
+        params = {'function': 'getdata',
+                  'id': sensor.id}
+        if fromdate:
+            params['date'] = fromdate.strftime('%Y%m%dT%H:%M:%S')
+            params['slots'] = slots or 1000
 
-            return values
-        finally:
-            if logout:
-                await self.logout()
+        soup, url = await self.read(**params)
+        # Check returned node_id
+        nodes = soup.response.find_all('node')
+        # Make an empty value list
+        values = []
+        # Make a dict to relate id's with valuefactory numbers
+        vfdict = dict((str(vf.id), i) for i, vf in enumerate(sensor.valuefactories))
+        for node in nodes:
+            # Get first value with absolute date
+            t = datetime.datetime.strptime(node.v['t'], '%Y%m%dT%H:%M:%S')
+            for v_elem in node.find_all('v'):
+                v = float(v_elem.string)
+                # Check for relative time
+                if v_elem['t'].startswith('+'):
+                    t += datetime.timedelta(seconds=int(v_elem['t']))
+                if node['id'] in vfdict:
+                    i = vfdict[node['id']]
+                    values.append(sensor.valuefactories[i](v, t))
+
+        return values
