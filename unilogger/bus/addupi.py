@@ -132,9 +132,9 @@ class Bus(base.Bus):
                     raise AddUPIError('AddUPI connection failed, no response tag from {}, got instead:\n{}'
                                       .format(r.url, soup.prettify()))
                 # check for error
-                if soup.response.error:
+                if error := soup.response.find('error', recursive=False):
                     raise AddUPIError('AddUPI connection failed got Error code {code}: {msg} on {url}'
-                                      .format(url=r.url, **soup.response.error.attrs))
+                                      .format(url=r.url, **error.attrs))
                 return soup, r.url
 
     async def login(self, timeout=None):
@@ -149,7 +149,7 @@ class Bus(base.Bus):
         soup, url = await self.read(**params)
         self.session = str(soup.response.result.text.strip())
         if not self.session or self.session=='None':
-            raise AddUPIError('Tried to login but got not a session id from {} Response:\n{}'.format(url,soup))
+            raise AddUPIError('Tried to login but got not a session id from {} Response:\n{}'.format(url, soup))
         return self.session
 
     async def logout(self):
@@ -184,7 +184,6 @@ class Bus(base.Bus):
                 asensor.valuefactories.append(base.ValueFactory(**n.attrs))
         self.sensors.append(asensor)
         return asensor
-
 
     async def read_all(self) -> typing.List[base.Value]:
         if not self.session:
