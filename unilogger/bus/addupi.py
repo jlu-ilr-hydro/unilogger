@@ -2,6 +2,7 @@
 
 """
 import typing
+import warnings
 
 import aiohttp
 import datetime
@@ -218,14 +219,16 @@ class Bus(base.Bus):
         vfdict = dict((str(vf.id), i) for i, vf in enumerate(sensor.valuefactories))
         for node in nodes:
             # Get first value with absolute date
-            t = datetime.datetime.strptime(node.v['t'], '%Y%m%dT%H:%M:%S')
-            for v_elem in node.find_all('v'):
-                v = float(v_elem.string)
-                # Check for relative time
-                if v_elem['t'].startswith('+'):
-                    t += datetime.timedelta(seconds=int(v_elem['t']))
-                if node['id'] in vfdict:
+            if node['id'] in vfdict and node.v:
+                t = datetime.datetime.strptime(node.v['t'], '%Y%m%dT%H:%M:%S')
+                for v_elem in node.find_all('v'):
+                    v = float(v_elem.string)
+                    # Check for relative time
+                    if v_elem['t'].startswith('+'):
+                        t += datetime.timedelta(seconds=int(v_elem['t']))
                     i = vfdict[node['id']]
                     values.append(sensor.valuefactories[i](v, t))
+            elif node.error:
+                warnings.warn('Addupi warning: #{code}: {msg} ({url})'.format(**node.error.args, url=url))
 
         return values
