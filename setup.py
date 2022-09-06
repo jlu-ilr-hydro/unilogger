@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='unilogger',
-    version='2022.6.22',
+    version='2022.9.5',
     packages=find_packages(),
     author='Philipp Kraft',
     author_email='philipp.kraft@umwelt.uni-giessen.de',
