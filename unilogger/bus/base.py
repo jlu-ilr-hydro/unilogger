@@ -2,7 +2,7 @@ from datetime import datetime
 import typing
 import importlib
 import yaml
-
+import collections
 
 import logging
 logger = logging.getLogger(__name__)
@@ -38,7 +38,7 @@ class ScaleFunction:
         return self.__code
 
 
-class Value:
+class Value(collections.UserDict):
     """
     A measured value with metadata
     """
@@ -80,11 +80,6 @@ class Value:
         else:
             raise AttributeError(f'{item} not an attribute of {self}')
 
-    def __getitem__(self, item):
-        if item in self.extradata:
-            return self.extradata[item]
-        else:
-            raise KeyError(f'{item} not a data field of {self}')
 
     def __asdict__(self):
         """
@@ -93,6 +88,10 @@ class Value:
         res = self.extradata.copy()
         res.update(dict(name=self.name, value=self.value, time=self.time.isoformat()))
         return res
+
+    @property
+    def data(self):
+        return self.__asdict__()
 
 
 class ValueFactory:

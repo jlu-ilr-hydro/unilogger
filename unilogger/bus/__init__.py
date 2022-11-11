@@ -26,4 +26,4 @@ Every Bus must implement the following methods:
 The open_bus function loads the bus description (usally from a yaml file
 """
 
-from .base import open_bus, Value
+from .base import open_bus, Value, ValueFactory
