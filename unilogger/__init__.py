@@ -4,4 +4,4 @@ web database
 """
 
 from .asyncio_helper import await_coro
-__version__ = '2022.11.11'
+__version__ = '2022.11.14'

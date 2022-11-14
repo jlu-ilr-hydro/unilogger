@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "unilogger"
+authors = [
+  { name="Philipp Kraft", email="philipp.kraft@envr.jlug.de" },
+]
+description = "A flexible interface for various sensor bus systems"
+readme = "README.md"
+license = { file="LICENSE" }
+requires-python = ">=3.9"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dynamic = ["version"]
+dependencies = [
+    "umodbus",
+    "aiohttp",
+    "BeautifulSoup4",
+    "aioserial",
+    "pyyaml",
+    "lxml",
+    "pyserial",
+    "asteval",
+    "pandas",
+    "tables",
+    "openpyxl"
+]
+[tool.setuptools]
+packages= ["unilogger"]
+[tool.setuptools.dynamic]
+version = {attr = "unilogger.__version__"}
+readme = {file = ["README.md"]}
+
+[project.urls]
+"Homepage" = "https://github.com/jlu-ilr-hydro/unilogger"
+"Bug Tracker" = "https://github.com/jlu-ilr-hydro/unilogger/issues"
